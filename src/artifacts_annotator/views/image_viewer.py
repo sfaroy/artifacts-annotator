@@ -137,8 +137,7 @@ class ImageViewerWindow(QMainWindow):
     def _load_current(self, initial=False) -> None:
         path = self.files[self.index]
         self.setWindowTitle(path)
-        if not initial:
-            self._save_annotations()
+
         # clear before loading
         self.viewer.scene_obj.clear()
         self.viewer.scene_obj.annotations.clear()
@@ -159,11 +158,13 @@ class ImageViewerWindow(QMainWindow):
 
     def next_image(self) -> None:
         if self.index < len(self.files)-1:
+            self._save_annotations()
             self.index += 1
             self._load_current()
 
     def prev_image(self) -> None:
         if self.index > 0:
+            self._save_annotations()
             self.index -= 1
             self._load_current()
 
