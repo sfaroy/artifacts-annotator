@@ -1,36 +1,40 @@
-from typing import List, Dict, Union, Tuple
-import numpy as np
 from PIL import Image, ImageDraw
+import numpy as np
 
-Annotation = Dict[str, Union[str, List[List[float]]]]
+Annotation = dict  # alias for clarity
 
-def annotation_to_mask(
-    size: Tuple[int, int],
-    annotations: List[Annotation]
-) -> np.ndarray:
-    """Convert rect/poly annotations into a binary mask.
-
-    Args:
-        size: (width, height) of the source image.
-        annotations: List of dicts, each with:
-          - 'type': 'rect' or 'poly'
-          - 'points': [[x0, y0], [x1, y1]] for rect
-                       or [[x, y], …] for poly
+def annotation_to_local_mask(
+    annotation: Annotation
+) -> tuple[np.ndarray, tuple[int, int]]:
+    """
+    Rasterize one rect/poly annotation into a boolean mask
+    cropped to its bounding box.
 
     Returns:
-        mask: boolean array of shape (height, width), True inside annotations.
+      mask: 2D bool array of shape (h, w)
+      (x0, y0): top-left corner of that bbox in the full image
     """
-    width, height = size
-    mask_img = Image.new("L", (width, height), 0)
-    draw = ImageDraw.Draw(mask_img)
+    pts = annotation["points"]
+    # compute absolute bbox
+    if annotation["type"] == "rect":
+        (x0, y0), (x1, y1) = pts
+    else:  # poly
+        xs, ys = zip(*pts)
+        x0, x1 = min(xs), max(xs)
+        y0, y1 = min(ys), max(ys)
+    x0, y0, x1, y1 = map(int, (x0, y0, x1, y1))
 
-    for ann in annotations:
-        pts = ann["points"]
-        if ann["type"] == "rect":
-            (x0, y0), (x1, y1) = pts
-            draw.rectangle([int(x0), int(y0), int(x1), int(y1)], fill=1)
-        elif ann["type"] == "poly":
-            xy = [(int(x), int(y)) for x, y in pts]
-            draw.polygon(xy, fill=1)
+    w, h = x1 - x0, y1 - y0
+    img = Image.new("L", (w, h), 0)
+    draw = ImageDraw.Draw(img)
 
-    return np.array(mask_img, dtype=bool)
+    if annotation["type"] == "rect":
+        # draw rectangle filling the whole local image
+        draw.rectangle([0, 0, w, h], fill=1)
+    else:
+        # shift polygon into local coords
+        local_pts = [(x - x0, y - y0) for x, y in pts]
+        draw.polygon(local_pts, fill=1)
+
+    mask = np.array(img, dtype=bool)
+    return mask, (x0, y0)
