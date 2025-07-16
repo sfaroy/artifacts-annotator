@@ -19,15 +19,15 @@ class AnnotationCropGenerator:
 
     def generate(
         self,
-        image: Image.Image
+        image_size: tuple[int, int]
     ) -> tuple[np.ndarray, tuple[int, int], list[tuple[int, int, int, int]]]:
         """
-        Given the full PIL image, returns:
+        Given the image dimensions (width, height), returns:
           - mask: local boolean mask with margin
           - offset: (left, top) top-left of the mask in global coords
           - crops: list of global crop boxes (left, top, right, bottom)
         """
-        mask, offset = self._create_local_mask_with_margin(image.size)
+        mask, offset = self._create_local_mask_with_margin(image_size)
         local_crops = self._compute_local_crops(mask)
         crops = [
             (l + offset[0], t + offset[1], r + offset[0], b + offset[1])
@@ -107,6 +107,8 @@ class AnnotationCropGenerator:
         boxes: list[tuple[int, int, int, int]] = []
         for lab in range(1, num + 1):
             ys, xs = np.nonzero(lm == lab)
+            if ys.size == 0:
+                continue
             y0, y1 = ys.min(), ys.max()
             x0, x1 = xs.min(), xs.max()
             boxes.append((x0, y0, x1 + w, y1 + h))
