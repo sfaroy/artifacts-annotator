@@ -88,7 +88,7 @@ class ImageViewerWindow(QMainWindow):
     """Window that holds ImageViewer and manages per-image annotations."""
     def __init__(self, files: List[str], index: int = 0) -> None:
         super().__init__()
-        self.settings = QSettings('SIRC','deblur-artifact-label-tool')
+        self.settings = QSettings('Roee','artifact-label-tool')
         geom = self.settings.value('viewerGeometry')
         self._restored = False
         if isinstance(geom, QByteArray):
