@@ -90,3 +90,43 @@ class MainWindow(QMainWindow):
         if self.watcher:
             self.watcher.stop()
         super().closeEvent(event)
+
+    def _export_crops(self) -> None:
+        """
+        Batch-export all annotated crops + JSON metadata
+        into a user-selected directory.
+        """
+        from pathlib import Path
+        from PIL import Image
+        from PyQt5.QtWidgets import QFileDialog
+        from artifacts_annotator.controllers.annotation_manager import AnnotationManager
+        from artifacts_annotator.generators.crop_generator import AnnotationCropGenerator
+        from artifacts_annotator.controllers.output_writer import write_crops_and_metadata
+
+        # 1. ask for target folder
+        out_dir = QFileDialog.getExistingDirectory(self, "Select output folder", os.path.expanduser("~"))
+        if not out_dir:
+            return
+        out_path = Path(out_dir)
+
+        # 2. prepare the annotation loader
+        ann_mgr = AnnotationManager(self.current_folder)
+        total = len(self.files)
+
+        # 3. loop through each image
+        for idx, img_path_str in enumerate(self.files, start=1):
+            self.statusBar().showMessage(f"Exporting {idx}/{total}: {img_path_str}")
+            img_path = Path(img_path_str)
+
+            # load annotations from .json or in-memory
+            annotations = ann_mgr.load(str(img_path))
+
+            # init generator with the image size
+            size = Image.open(img_path).size
+            gen = AnnotationCropGenerator(annotations, image_size=size)
+
+            # write crops + metadata into the chosen folder
+            write_crops_and_metadata(img_path, gen, out_path)
+
+        # 4. done
+        self.statusBar().showMessage("Export complete!", 3000)
