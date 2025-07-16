@@ -34,9 +34,16 @@ class MainWindow(QMainWindow):
             self._load_folder(last)
 
     def _init_ui(self) -> None:
-        open_act = QAction("Open Folder", self)
+        file_menu = self.menuBar().addMenu("File")
+        open_act = QAction("Open Folder…", self)
         open_act.triggered.connect(self._on_open_folder)
-        self.menuBar().addMenu("File").addAction(open_act)
+        file_menu.addAction(open_act)
+
+        export_act = QAction("Export Crops…", self)
+        export_act.setEnabled(False)  # will turn on after folder load
+        export_act.triggered.connect(self._export_crops)
+        file_menu.addAction(export_act)
+        self.export_act = export_act
 
         self.container = QWidget()
         self.layout = QVBoxLayout(self.container)
@@ -55,6 +62,7 @@ class MainWindow(QMainWindow):
             self.watcher.stop()
         self.file_scanner = FileScanner(folder)
         self.files = self.file_scanner.scan_files()
+        self.export_act.setEnabled(bool(self.files))
         # clear old grid
         for i in reversed(range(self.layout.count())):
             w = self.layout.itemAt(i).widget()
