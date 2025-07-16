@@ -32,15 +32,15 @@ def write_crops_and_metadata(
         for crop_idx, (l, t, r, b) in enumerate(crops):
             # Extract and save crop
             patch = img.crop((l, t, r, b))
-            fname = f"{stem}_ann{ann_idx}_crop{crop_idx}{image_ext}"
+            fname = f"{stem}_ann{int(ann_idx)}_crop{int(crop_idx)}{image_ext}"
             out_path = output_dir / fname
             patch.save(out_path)
 
-            # Record metadata
+            # Record metadata with native Python types
             metadata.append({
-                "annotation_index": ann_idx,
-                "crop_index": crop_idx,
-                "bbox": [l, t, r, b],
+                "annotation_index": int(ann_idx),
+                "crop_index": int(crop_idx),
+                "bbox": [int(l), int(t), int(r), int(b)],
                 "file": fname
             })
 
