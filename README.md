@@ -1,91 +1,120 @@
 # Data Selection App (artifacts_annotator)
 
-A Python GUI application for annotating image artifacts and generating fixed-size crops for model training. It supports folder browsing, annotation drawing (rectangles & polygons), crop-generation with coverage guarantees, and output export with metadata.
+A Python GUI application for annotating image artifacts and generating fixed-size crops for model training. It supports:
 
-## Features
+- **Folder Browser**: navigate directories, view thumbnails, dynamic folder watching  
+- **Image Viewer**: zoom, pan, and navigate via thumbnails or keyboard (PageUp/PageDown)  
+- **Annotation Tools**: draw rectangles or polygons; select, move, and delete annotations  
+- **Crop Logic**: for each annotation, generate customizable crops that guarantee ≥50% coverage of the mask  
+- **Export**: batch-export crops and per-image JSON metadata via menu or script  
 
-- **Folder Browser**: Navigate directories, view image thumbnails, dynamic folder watching.
-- **Image Viewer**: Zoom, pan, and navigate via thumbnails or PageUp/PageDown.
-- **Annotation Tools**: Draw rectangles or polygons; select and delete annotations.
-- **Crop Logic**: For each annotation, generate ≥128×128 crops ensuring ≥50% mask coverage.
-- **Export**: Save cropped images and per-image JSON metadata with bounding boxes.
+## Specification & Planning
+
+All high-level requirements and the development roadmap live in `spec.md`. The stages are:
+
+1. **Scaffold & thumbnail grid**  
+2. **Full-image viewer** (zoom/pan)  
+3. **Annotation drawing & persistence**  
+4. **Crop-generation logic** (“any subcrop contains artifact” rule)  
+5. **Output writing** (crops + JSON)  
+6. **Mark-done & next/prev navigation**  
 
 ## Installation
 
-    git clone <repo_url>
-    cd <repo_folder>
-    pip install -e .
+Clone the repo and install in editable mode:
 
-Dependencies are managed via pyproject.toml / setup.cfg:
+```bash
+git clone https://github.com/sfaroy/artifacts-annotator.git
+cd artifacts-annotator
+pip install -e .
+```
 
-- Python ≥3.7 (tested on 3.12)
-- PyQt5
-- Pillow
-- watchdog
-- scipy
+Dependencies are listed in `requirements.txt` and `setup.cfg`:
+
+- Python ≥ 3.10  
+- PyQt5  
+- Pillow  
+- watchdog  
+- scipy  
 
 ## Usage
 
-Run the GUI:
+### Module entry point
 
-    python -m artifacts_annotator.main
+```bash
+python -m artifacts_annotator.main
+```
 
-1. Open Folder via the File menu.  
-2. Click a thumbnail to open the image viewer.  
-3. Select drawing mode (`R` for rect, `P` for poly) and annotate artifacts.  
-4. Use write_crops_and_metadata in code or the export menu (TBD) to generate crops.
+### Script entry point
+
+The `scripts/` folder contains CLI launchers. For example:
+
+```bash
+python scripts/run_app.py --input /path/to/images
+```
+
+This opens the GUI and loads the specified folder at startup.
+
+## Workflow
+
+1. Choose **File → Open Folder…** to pick your dataset root.  
+2. Click a thumbnail to open the image in the viewer.  
+3. Press **R** (rectangle) or **P** (polygon) to draw your artifact masks.  
+4. Use **File → Export Crops…** or the script to generate all crops (default 128×128) plus JSON metadata in your chosen output folder.  
 
 ## Programmatic Export Example
 
-    from pathlib import Path
-    import json
-    from PIL import Image
-    from artifacts_annotator.generators.crop_generator import AnnotationCropGenerator
-    from artifacts_annotator.controllers.output_writer import write_crops_and_metadata
+```python
+from pathlib import Path
+import json
+from PIL import Image
+from artifacts_annotator.generators.crop_generator import AnnotationCropGenerator
+from artifacts_annotator.controllers.output_writer import write_crops_and_metadata
 
-    img_path = Path("/path/to/image.png")
-    with open(img_path.with_suffix('.json')) as f:
-        annotations = json.load(f)
+img_path = Path("/path/to/image.png")
+annotations = json.loads(img_path.with_suffix(".json").read_text())
 
-    gen = AnnotationCropGenerator(
-        annotations,
-        image_size=Image.open(img_path).size,
-        window_size=(128,128),
-        min_fraction=0.5
-    )
+gen = AnnotationCropGenerator(
+    annotations,
+    image_size=Image.open(img_path).size,
+    window_size=(128, 128),
+    min_fraction=0.5
+)
 
-    write_crops_and_metadata(
-        image_path=img_path,
-        generator=gen,
-        output_dir=Path("/path/to/output")
-    )
+write_crops_and_metadata(
+    image_path=img_path,
+    generator=gen,
+    output_dir=Path("/path/to/output")
+)
+```
 
 ## Directory Structure
 
-    src/artifacts_annotator/
-    ├── app.py              # Main window and logic
-    ├── controllers/
-    │   ├── file_scanner.py
-    │   ├── file_watcher.py
-    │   ├── annotation_manager.py
-    │   └── output_writer.py
-    ├── generators/
-    │   ├── thumbnail_loader.py
-    │   ├── mask_generator.py
-    │   └── crop_generator.py
-    ├── views/
-    │   ├── thumbnail_grid.py
-    │   ├── annotation_scene.py
-    │   └── image_viewer.py
-    └── main.py             # Entry point
+```
+.
+├── spec.md                     # app specification & stage planning
+├── scripts/                    # CLI launchers
+│   └── run_app.py              # entry-point for the GUI
+├── src/
+│   └── artifacts_annotator/    # package code
+│       ├── main.py             # module entry point
+│       ├── app.py              # MainWindow & menu integration
+│       ├── controllers/        # file scanning, annotation I/O, export
+│       ├── generators/         # thumbnail, mask & crop logic
+│       └── views/              # Qt scenes & widgets
+├── requirements.txt            # optional venv pins
+├── setup.cfg                   # package metadata & deps
+├── pyproject.toml              # build-system settings
+└── README.md                   # this file
+```
 
 ## Contributing
 
-Feel free to open issues or pull requests for:
+Contributions welcome! PRs for:
 
-- Export menu/toolbar integration  
-- Annotation tracking (mark-done, thumbnail badges)  
-- Additional crop-logic parameters or formats  
+- Completing Stage 6 (mark-done badges, next/prev navigation)  
+- Custom crop-logic parameters or export formats  
+- UI polish, keyboard shortcuts, performance improvements  
 
 ## License
 
