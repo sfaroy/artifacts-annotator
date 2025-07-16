@@ -1,81 +1,63 @@
 import numpy as np
 from scipy.ndimage import label
 
-def compute_threshold_safe_mask_integral(
+def generate_crop_rectangles(
     mask: np.ndarray,
     window_size: tuple[int, int] = (128, 128),
-    min_fraction: float = 0.5
-) -> np.ndarray:
-    """
-    Fast “≥min_fraction” coverage map via summed‐area table.
-
-    Returns a boolean array of shape (H−h+1, W−w+1) indicating
-    where a window of size window_size has ≥min_fraction of its
-    pixels inside mask.
-    """
-    h, w = window_size
-
-    # 1) build integral image with zero‐padding
-    int_img = np.pad(mask.astype(np.uint32), ((1,0),(1,0)), constant_values=0)
-    int_img = int_img.cumsum(axis=0).cumsum(axis=1)
-
-    # 2) sliding‐window sum via four corners
-    total = (
-        int_img[h:,   w:]   # bottom‐right
-      - int_img[:-h,  w:]   # top‐right
-      - int_img[h:,  :-w]   # bottom‐left
-      + int_img[:-h, :-w]   # top‐left
-    )
-
-    # 3) threshold
-    min_count = min_fraction * (h * w)
-    return total >= min_count
-
-
-def label_safe_regions(
-    safe_map: np.ndarray
-) -> tuple[np.ndarray, int]:
-    """
-    Connected‐component label of the boolean safe_map.
-
-    Args:
-        safe_map: 2D bool array where True marks valid top-lefts.
-
-    Returns:
-        labeled: int array same shape as safe_map, labels 1…num_labels
-        num_labels: number of connected components found
-    """
-    labeled, num_labels = label(safe_map)
-    return labeled, num_labels
-
-def derive_crop_rectangles(
-    labeled: np.ndarray,
-    num_labels: int,
-    window_size: tuple[int, int] = (128, 128)
+    min_fraction: float     = 0.5
 ) -> list[tuple[int, int, int, int]]:
     """
-    For each connected safe‐region, compute the minimal bounding
-    rectangle (in original image coords) that contains all valid
-    window top-lefts for that region.
-
-    Args:
-        labeled: output from `label_safe_regions`
-        num_labels: number of labels
-        window_size: (height, width) of your crop window
-
-    Returns:
-        List of (left, top, right, bottom) crop boxes.
+    Return a list of crop-boxes (left, top, right, bottom) such that:
+      - If mask.sum() >= min_fraction * area(window), we find all
+        connected regions where a window has >=min_fraction coverage,
+        and return their bounding rects (as before).
+      - If mask.sum() < min_fraction * area(window), we return a
+        single window of size `window_size` centered over the mask's
+        tight bounding box (or shifted to fit in image).
     """
+    H, W = mask.shape
     h, w = window_size
-    boxes: list[tuple[int, int, int, int]] = []
+    min_count = min_fraction * (h * w)
+    total_pixels = mask.sum()
 
-    for lab in range(1, num_labels + 1):
-        ys, xs = np.nonzero(labeled == lab)
+    # Case A: small mask → one centered 128×128 crop
+    if total_pixels < min_count:
+        ys, xs = np.nonzero(mask)
+        if ys.size == 0:
+            return []
+        # mask bbox center
+        yc = int((ys.min() + ys.max()) / 2)
+        xc = int((xs.min() + xs.max()) / 2)
+        # top-left of a centered window
+        top  = max(0, min(yc - h//2, H - h))
+        left = max(0, min(xc - w//2, W - w))
+        return [(left, top, left + w, top + h)]
+
+    # Case B: normal mask → sliding-window threshold + labeling
+    # 1) summed-area table for fast window sums
+    m = mask.astype(np.uint32)
+    int_img = np.pad(m, ((1,0),(1,0)), constant_values=0)
+    int_img = int_img.cumsum(axis=0).cumsum(axis=1)
+    sums = (
+        int_img[h:,   w:]
+      - int_img[:-h,  w:]
+      - int_img[h:,  :-w]
+      + int_img[:-h, :-w]
+    )
+    safe_map = sums >= min_count
+
+    # 2) connected-components on safe_map
+    labeled, n_comp = label(safe_map)
+
+    # 3) for each component compute bounding rect in original coords
+    boxes: list[tuple[int,int,int,int]] = []
+    for comp in range(1, n_comp + 1):
+        ys, xs = np.nonzero(labeled == comp)
         if ys.size == 0:
             continue
         y0, y1 = ys.min(), ys.max()
         x0, x1 = xs.min(), xs.max()
-        # Extend to full crop in original image
+        # map back to image coords: top-left = (y0,x0), bottom-right = (y1+h, x1+w)
         left   = int(x0)
         top    = int(y0)
         right  = int(x1 + w)
