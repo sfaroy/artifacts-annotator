@@ -1,23 +1,73 @@
 # Feature - annotation types
 
-## Setting artifact type to new artifact
-I need the option to define the type of annotation per selected rectangle or poly. There should be a combo box in the tool bar that allow me to select the requested artifact type. When I mark an artifact in the image, it will be of the selected type. 
+## Setting artifact type to new annotation
+- A combo box will be added to the toolbar for selecting an artifact type.
+- When drawing a new rectangle or polygon annotation, it will automatically be assigned the currently selected artifact type.
 
-## Viewing or changing artifacts types
-There will be an option to view/change the type of artifact of an existing rect or poly. When I select the rect, the combo-box will show the type of artifact of the selected rect. If I change the combo then the type of artifact will be changed for the selected rect
+## Viewing or changing artifact types
+- Selecting an existing annotation (rect or poly) will update the combo box to display its artifact type.
+- Changing the combo box value will update the artifact type of the selected annotation to the newly chosen type.
 
 ## Multiple-selection
-There will be option to have multiple selection for multiple rects or polys. This can be done by using control and selecting, or changing the mode from pan to select mode (new mode to be added) and then select by mouse drag.
-
-When there are different types of artifacts in the selection then the combo will show `*`. Changing the combo to a differnt type will change for all of the selections
+- Users can select multiple annotations either by:
+  - Holding `Ctrl` and clicking on multiple items.
+  - Switching to a new "selection mode" (distinct from pan mode) that allows selection via mouse drag.
+  - Using Ctrl-A will select all annotations 
+- If the selected annotations have different artifact types, the combo box will display `*`.
+- Changing the combo box value when `*` is shown will apply the new type to all selected annotations.
 
 ## Visualization
-Rect/poly of the same type will be drawn with the same color. If they have different types, they will be drawn with different colors.
+- All annotations of the same artifact type will be rendered using the same color.
+- Annotations of different types will have different colors, enabling visual distinction on the canvas.
 
 ## Settings
-There should be an option to define the artifact types in a settings file (yaml file) that the app should read. If the settings file doesn't exists then default settings will be active. The default artifact types will be "Artifact","No Artifact". There will be option to define the color for every defined artifact - if not defined, the app will give a unique color for every artifact.
-
+- Artifact types and their associated colors will be defined in a YAML configuration file.
+- If the settings file is missing, default artifact types will be used: `["Artifact", "No Artifact"]`.
+- If a type does not have a color specified, the application will assign a unique default color to it.
 
 ## Export
+- During crop export, each crop’s associated artifact type will be included in the exported JSON metadata.
+- There will be an option to make a specific sub-folder for every artifact type. The sub-folder name will be the name of the artifact type - spaces will be replaced with underscores
 
-When exporting the crops, the artifact type will also be written for every crop in the json files.
+
+# Implementation Stages – Annotation Types Feature
+
+## Stage 1: Load artifact types and colors
+- Read artifact types and optional colors from a YAML settings file.
+- If file missing, use default types: `["Artifact", "No Artifact"]`.
+- Assign unique colors for types without explicit color values.
+- Store mapping of `type → color` for use in annotation rendering.
+
+## Stage 2: Add toolbar combo box
+- Add a QComboBox to the toolbar listing all artifact types.
+- Include a non-selectable `*` entry for mixed-type selections.
+- Keep track of the currently selected type for use in annotation creation.
+
+## Stage 3: Update annotation model
+- Add `artifact_type` attribute to all annotation objects (rect/polygon).
+- Set the type upon creation using the combo box selection.
+- Update the drawing logic to use the color corresponding to the artifact type.
+
+## Stage 4: Selection-based interaction
+- When selecting a single annotation:
+  - Update the combo box to show its artifact type.
+- When selecting multiple annotations:
+  - If all same type → show that type.
+  - If mixed types → show `*`.
+- Changing the combo box (excluding `*`) updates all selected annotations' types.
+
+## Stage 5: Multi-selection support
+- Support multi-selection using:
+  - `Ctrl` + click for additive selection.
+  - Mouse drag in a new "select mode" (toggleable from pan mode).
+  - `Ctrl+A` to select all annotations.
+- Add toolbar toggle for switching between pan and select modes.
+
+## Stage 6: Visualization updates
+- Render annotations using the color associated with their artifact type.
+- Ensure color updates are reflected immediately on type change.
+
+## Stage 7: Export logic
+- Include `"artifact_type"` in the exported JSON for each crop.
+- Add optional feature to export crops into subfolders per artifact type.
+  - Folder names are based on artifact type name with spaces replaced by underscores.
