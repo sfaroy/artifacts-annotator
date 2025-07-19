@@ -10,6 +10,7 @@ from .controllers.file_scanner import FileScanner
 from .controllers.file_watcher import FileWatcher
 from .views.thumbnail_grid import ThumbnailGrid
 from .views.image_viewer import ImageViewerWindow
+from .config import load_artifact_types
 
 class MainWindow(QMainWindow):
     """Main window: folder browsing, thumbnail grid, launches viewer."""
@@ -22,6 +23,7 @@ class MainWindow(QMainWindow):
         else:
             self.resize(800, 600)
 
+        self.type_colors = load_artifact_types()
         self.current_folder: Optional[str] = None
         self.files: List[str] = []
         self.file_scanner: Optional[FileScanner] = None

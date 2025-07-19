@@ -1,0 +1,7 @@
+artifact_types:
+  - Artifact
+  - No Artifact
+  - Other
+artifact_colors:
+  Artifact: "#ff0000"
+  No Artifact: "#00ff00"
