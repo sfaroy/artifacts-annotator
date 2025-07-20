@@ -3,7 +3,7 @@ import os
 from typing import List
 from PyQt5.QtWidgets import (
     QGraphicsView, QMainWindow, QShortcut, QToolBar,
-    QAction, QActionGroup, QComboBox
+    QAction, QActionGroup, QComboBox, QGraphicsItem
 )
 from PyQt5.QtGui import QPixmap, QKeySequence, QCursor
 from PyQt5.QtCore import Qt, QRectF, pyqtSignal, QSettings, QByteArray
@@ -26,7 +26,9 @@ class ImageViewer(QGraphicsView):
         default_type: str = None
     ) -> None:
         super().__init__(parent)
-        self.scene_obj = AnnotationScene(self, type_colors=type_colors, default_type=default_type)
+        self.scene_obj = AnnotationScene(
+            self, type_colors=type_colors, default_type=default_type
+        )
         self.setScene(self.scene_obj)
         self._zoom_index = self.ZOOM_LEVELS.index(1.0)
         self.scale_factor = 1.0
@@ -145,13 +147,22 @@ class ImageViewerWindow(QMainWindow):
 
         QShortcut(QKeySequence(Qt.Key_PageDown), self, activated=self.next_image)
         QShortcut(QKeySequence(Qt.Key_PageUp), self, activated=self.prev_image)
+        QShortcut(QKeySequence("Ctrl+A"), self, activated=self._select_all)
+
         self.viewer.zoomChanged.connect(self._update_status)
         self.viewer.modeChanged.connect(self._update_status)
         self.viewer.positionChanged.connect(self._update_status)
-
         self.viewer.scene_obj.selectionChanged.connect(self._on_scene_selection_changed)
 
         self._load_current(initial=True)
+
+    def _select_all(self) -> None:
+        """Select all annotation items in the scene."""
+        scene = self.viewer.scene_obj
+        for item in scene.items():
+            if item.flags() & QGraphicsItem.ItemIsSelectable:
+                item.setSelected(True)
+        self._on_scene_selection_changed()
 
     def _on_scene_selection_changed(self) -> None:
         """Update combo box based on current selection."""
