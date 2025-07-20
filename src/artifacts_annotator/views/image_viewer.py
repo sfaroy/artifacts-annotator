@@ -190,9 +190,28 @@ class ImageViewerWindow(QMainWindow):
             return
         self.current_artifact_type = new_type
         self.viewer.scene_obj.current_artifact_type = new_type
+        scene = self.viewer.scene_obj
+
         for item in self.viewer.scene_obj.selectedItems():
-            ann = item.data(0)
-            ann['artifact_type'] = new_type
+            # 1. Grab the copy from the item
+            ann_copy = item.data(0)
+
+            # 2. Find & update the *real* dict in scene.annotations
+            for ann in scene.annotations:
+                # match by identity or unique fields (points+type)
+                if ann is ann_copy or ann == ann_copy:
+                    ann['artifact_type'] = new_type
+                    real_ann = ann
+                    break
+            else:
+                # fallback: if not found, stick with the copy
+                real_ann = ann_copy
+                real_ann['artifact_type'] = new_type
+
+            # 3. Push the updated dict back into the item
+            item.setData(0, real_ann)
+
+            # 4. Redraw with the new pen
             pen = self.viewer.scene_obj._pen_for(new_type)
             item.setPen(pen)
 
