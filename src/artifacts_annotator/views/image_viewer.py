@@ -26,10 +26,8 @@ class ImageViewer(QGraphicsView):
         default_type: str = None
     ) -> None:
         super().__init__(parent)
-        # pass the type→color map and default type into the scene
         self.scene_obj = AnnotationScene(self, type_colors=type_colors, default_type=default_type)
         self.setScene(self.scene_obj)
-
         self._zoom_index = self.ZOOM_LEVELS.index(1.0)
         self.scale_factor = 1.0
         self.setDragMode(QGraphicsView.ScrollHandDrag)
@@ -88,7 +86,7 @@ class ImageViewer(QGraphicsView):
         elif mode == 'select':
             self.setDragMode(QGraphicsView.RubberBandDrag)
             self.setCursor(QCursor(Qt.ArrowCursor))
-        else:  # rect or poly
+        else:
             self.setDragMode(QGraphicsView.NoDrag)
             self.setCursor(QCursor(Qt.CrossCursor))
 
@@ -97,14 +95,13 @@ class ImageViewerWindow(QMainWindow):
     """Window that holds ImageViewer and manages per-image annotations."""
     def __init__(self, files: List[str], index: int = 0) -> None:
         super().__init__()
-        self.settings = QSettings('Roee', 'artifact-label-tool')
+        self.settings = QSettings('Roee','artifact-label-tool')
         geom = self.settings.value('viewerGeometry')
         self._restored = False
         if isinstance(geom, QByteArray):
             self.restoreGeometry(geom)
             self._restored = True
 
-        # load the types & initialize default
         self.type_colors = load_artifact_types()
         self.current_artifact_type = next(iter(self.type_colors))
 
@@ -113,18 +110,20 @@ class ImageViewerWindow(QMainWindow):
         folder = os.path.dirname(files[0])
         self.ann_mgr = AnnotationManager(folder)
 
-        # inject mapping & default into the viewer/scene
-        self.viewer = ImageViewer(self, type_colors=self.type_colors, default_type=self.current_artifact_type)
+        self.viewer = ImageViewer(
+            self,
+            type_colors=self.type_colors,
+            default_type=self.current_artifact_type
+        )
         self.setCentralWidget(self.viewer)
 
         tb = QToolBar('Tools', self)
         self.addToolBar(tb)
 
-        # Mode actions
-        mode_grp = QActionGroup(self); mode_grp.setExclusive(True)
+        mode_grp = QActionGroup(self)
+        mode_grp.setExclusive(True)
         self.mode_actions = {}
-        for key, mode in [('D','pan'), ('R','rect'),
-                          ('P','poly'), ('E','select')]:
+        for key, mode in [('D','pan'), ('R','rect'), ('P','poly'), ('E','select')]:
             act = QAction(f"{mode.title()} ({key})", self)
             act.setCheckable(True)
             act.setShortcut(key)
@@ -134,7 +133,6 @@ class ImageViewerWindow(QMainWindow):
             self.mode_actions[mode] = act
         self.mode_actions['pan'].setChecked(True)
 
-        # artifact-type combo
         self.type_combo = QComboBox(self)
         self.type_combo.addItem('*')
         self.type_combo.model().item(0).setEnabled(False)
@@ -145,25 +143,47 @@ class ImageViewerWindow(QMainWindow):
         self.type_combo.currentTextChanged.connect(self._on_artifact_type_changed)
         tb.addWidget(self.type_combo)
 
-        # Shortcuts and signals
         QShortcut(QKeySequence(Qt.Key_PageDown), self, activated=self.next_image)
         QShortcut(QKeySequence(Qt.Key_PageUp), self, activated=self.prev_image)
         self.viewer.zoomChanged.connect(self._update_status)
         self.viewer.modeChanged.connect(self._update_status)
         self.viewer.positionChanged.connect(self._update_status)
 
+        self.viewer.scene_obj.selectionChanged.connect(self._on_scene_selection_changed)
+
         self._load_current(initial=True)
+
+    def _on_scene_selection_changed(self) -> None:
+        """Update combo box based on current selection."""
+        items = self.viewer.scene_obj.selectedItems()
+        if not items:
+            self.type_combo.blockSignals(True)
+            self.type_combo.setCurrentText(self.current_artifact_type)
+            self.type_combo.blockSignals(False)
+            return
+        types = [item.data(0)['artifact_type'] for item in items]
+        unique = set(types)
+        self.type_combo.blockSignals(True)
+        if len(unique) == 1:
+            self.type_combo.setCurrentText(next(iter(unique)))
+        else:
+            self.type_combo.setCurrentIndex(0)
+        self.type_combo.blockSignals(False)
 
     def _on_artifact_type_changed(self, new_type: str) -> None:
         """
         Update the current artifact type for new annotations,
-        and propagate it to the scene so new shapes and styling use it.
+        apply to selected annotations.
         """
         if new_type == '*':
             return
         self.current_artifact_type = new_type
         self.viewer.scene_obj.current_artifact_type = new_type
-
+        for item in self.viewer.scene_obj.selectedItems():
+            ann = item.data(0)
+            ann['artifact_type'] = new_type
+            pen = self.viewer.scene_obj._pen_for(new_type)
+            item.setPen(pen)
 
     def _update_status(self, *args) -> None:
         z = int(self.viewer.scale_factor * 100)
@@ -178,7 +198,6 @@ class ImageViewerWindow(QMainWindow):
     def _load_current(self, initial=False) -> None:
         path = self.files[self.index]
         self.setWindowTitle(path)
-        # clear before loading
         self.viewer.scene_obj.clear()
         self.viewer.scene_obj.annotations.clear()
         if initial and not self._restored:
